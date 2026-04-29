@@ -20,12 +20,12 @@ const errorController = require('./controllers/error');
 const User = require('./models/user');
 const { forwardError } = require('./utils');
 
-// 1. Build the Standard Connection URI from your screenshot
+// 1. Build URI using Standard Connection shards from your screenshot
 const user = process.env.MONGO_USER;
 const password = encodeURIComponent(process.env.MONGO_PWD);
 const dbName = process.env.MONGO_DB;
 
-// Note: Using the shard addresses directly bypasses the DNS SRV resolution issues.
+// These exact shard addresses were verified via telnet
 const MONGODB_URI = `mongodb://${user}:${password}@ac-qqvvhq4-shard-00-00.jvfuvrn.mongodb.net:27017,ac-qqvvhq4-shard-00-01.jvfuvrn.mongodb.net:27017,ac-qqvvhq4-shard-00-02.jvfuvrn.mongodb.net:27017/${dbName}?ssl=true&replicaSet=atlas-uosj7f-shard-0&authSource=admin&retryWrites=true&w=majority`;
 
 const app = express();
@@ -36,19 +36,10 @@ const store = new MongoDbSessionStore({
   collection: 'sessions'
 });
 
-// Handle Session Store errors
-store.on('error', function(error) {
-  console.log('Session Store Error:', error);
-});
-
 // Multer configs
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'images');
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
+  destination: (req, file, cb) => { cb(null, 'images'); },
+  filename: (req, file, cb) => { cb(null, Date.now() + '-' + file.originalname); }
 });
 
 const fileFilter = (req, file, cb) => {
@@ -107,17 +98,17 @@ app.use(authRoutes);
 app.use(errorController.get404);
 app.use(errorController.get500);
 
-// 3. Connect to Database and Start Server
+// 3. Connect to Database and start server
 mongoose
   .connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => {
-    console.log('Successfully connected to MongoDb shards...');
+    console.log('CONNECTED: Database connection established via shard list.');
     const port = process.env.PORT || 7000;
     app.listen(port, "0.0.0.0", () => {
       console.log(`Server is live! Listening on port ${port}...`);
     });
   })
   .catch((err) => {
-    console.error('CRITICAL DATABASE ERROR:', err.message);
+    console.error('CRITICAL: Database connection failed!', err.message);
     process.exit(1); 
   });
