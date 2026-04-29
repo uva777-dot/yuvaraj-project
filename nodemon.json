@@ -1,0 +1,9 @@
+{
+  "env": {
+    "MONGO_USER": "gbloch",
+    "MONGO_PWD": "PASSWORD_REMOVED",
+    "MONGO_DB": "shop",
+    "PORT": 7000,
+    "STRIPE_KEY": "KEY_REMOVED"
+  }
+}

@@ -1,0 +1,23 @@
+# Ignore dependencies
+node_modules
+jspm_packages
+
+# Ignore build outputs and logs
+dist
+debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore Docker files themselves
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Ignore source control and OS metadata
+.git
+.gitignore
+.DS_Store
+
+# Ignore sensitive info
+.env
