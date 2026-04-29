@@ -20,12 +20,12 @@ const errorController = require('./controllers/error');
 const User = require('./models/user');
 const { forwardError } = require('./utils');
 
-// 1. Build URI using the Standard Connection format from your screenshot
+// 1. Build the Standard Connection URI from your screenshot
 const user = process.env.MONGO_USER;
 const password = encodeURIComponent(process.env.MONGO_PWD);
 const dbName = process.env.MONGO_DB;
 
-// This string is built exactly from your second screenshot to bypass DNS SRV issues
+// Note: Using the shard addresses directly bypasses the DNS SRV resolution issues.
 const MONGODB_URI = `mongodb://${user}:${password}@ac-qqvvhq4-shard-00-00.jvfuvrn.mongodb.net:27017,ac-qqvvhq4-shard-00-01.jvfuvrn.mongodb.net:27017,ac-qqvvhq4-shard-00-02.jvfuvrn.mongodb.net:27017/${dbName}?ssl=true&replicaSet=atlas-uosj7f-shard-0&authSource=admin&retryWrites=true&w=majority`;
 
 const app = express();
@@ -34,6 +34,11 @@ const app = express();
 const store = new MongoDbSessionStore({
   uri: MONGODB_URI,
   collection: 'sessions'
+});
+
+// Handle Session Store errors
+store.on('error', function(error) {
+  console.log('Session Store Error:', error);
 });
 
 // Multer configs
@@ -47,9 +52,7 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  if (file.mimetype === 'image/png' ||
-    file.mimetype === 'image/jpg' ||
-    file.mimetype === 'image/jpeg') {
+  if (file.mimetype === 'image/png' || file.mimetype === 'image/jpg' || file.mimetype === 'image/jpeg') {
     cb(null, true);
   } else {
     cb(null, false);
@@ -59,10 +62,7 @@ const fileFilter = (req, file, cb) => {
 app.set('view engine', 'ejs');
 app.set('views', 'views');
 
-const accessLogStream = fs.createWriteStream(
-  path.join(__dirname, 'access.log'),
-  { flags: 'a' }
-);
+const accessLogStream = fs.createWriteStream(path.join(__dirname, 'access.log'), { flags: 'a' });
 
 app.use(helmet());
 app.use(compression());
@@ -90,14 +90,10 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
-  if (!req.session.user) {
-    return next();
-  }
+  if (!req.session.user) return next();
   User.findById(req.session.user._id)
     .then(user => {
-      if (!user) {
-        return next();
-      }
+      if (!user) return next();
       req.user = user;
       next();
     })
@@ -111,11 +107,11 @@ app.use(authRoutes);
 app.use(errorController.get404);
 app.use(errorController.get500);
 
-// 3. Database Connection
+// 3. Connect to Database and Start Server
 mongoose
   .connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => {
-    console.log('Successfully connected to MongoDb via Standard Shard Connection...');
+    console.log('Successfully connected to MongoDb shards...');
     const port = process.env.PORT || 7000;
     app.listen(port, "0.0.0.0", () => {
       console.log(`Server is live! Listening on port ${port}...`);
