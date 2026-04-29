@@ -6,10 +6,10 @@ pipeline {
 
     environment {
         IMAGE_NAME = "node-shopping-app"
-        // Correct way to handle credentials and strings in the environment block
+        // Credentials stored in Jenkins under ID 'mongodb-atlas-creds'
         MONGO_CREDS = credentials('mongodb-atlas-creds')
         MONGO_DB   = "shop"
-        // We calculate the port using the build ID
+        // Calculate the host port based on the build number
         DYNAMIC_PORT = "${7000 + env.BUILD_ID.toInteger()}"
     }
 
@@ -17,7 +17,7 @@ pipeline {
         stage('Cleanup Environment') {
             steps {
                 script {
-                    // Remove existing containers on the dynamic port or with the same name
+                    // Remove existing containers on the dynamic port or with the same name to avoid conflicts
                     sh "docker ps -q --filter publish=${DYNAMIC_PORT} | xargs -r docker rm -f"
                     sh "docker rm -f container_${env.BUILD_NUMBER} || true"
                 }
@@ -26,6 +26,7 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
+                // Build the image using the build number as a tag
                 sh "docker build -t ${IMAGE_NAME}:v${env.BUILD_NUMBER} ."
             }
         }
@@ -34,7 +35,7 @@ pipeline {
             steps {
                 script {
                     echo "Deploying to Port: ${DYNAMIC_PORT}"
-                    // Note the triple quotes for multi-line shell and variable injection
+                    // Injecting environment variables into the container
                     sh """
                     docker run -d \
                       --name container_${env.BUILD_NUMBER} \
@@ -51,8 +52,23 @@ pipeline {
 
         stage('Health Check') {
             steps {
-                sleep 20
-                sh "curl -f http://localhost:${DYNAMIC_PORT} || exit 1"
+                script {
+                    echo "Waiting 20 seconds for application to initialize and connect to MongoDB..."
+                    sleep 20 
+                    
+                    // Attempt to curl the app. returnStatus: true prevents the build from crashing immediately
+                    def status = sh(script: "curl -f http://localhost:${DYNAMIC_PORT}", returnStatus: true)
+                    
+                    if (status != 0) {
+                        echo "--- ERROR DETECTED: PRINTING APPLICATION LOGS ---"
+                        // This prints the actual Node.js/Mongoose error to your Jenkins console
+                        sh "docker logs container_${env.BUILD_NUMBER}"
+                        echo "--- END OF LOGS ---"
+                        error "Health check failed. The web server on port ${DYNAMIC_PORT} did not respond."
+                    } else {
+                        echo "Health check passed! Application is responding."
+                    }
+                }
             }
         }
     }
@@ -60,8 +76,10 @@ pipeline {
     post {
         success {
             echo "Build #${env.BUILD_NUMBER} is live at port ${DYNAMIC_PORT}"
+            echo "Access URL: http://<YOUR-SLAVE-IP>:${DYNAMIC_PORT}"
         }
-        always {
+        cleanup {
+            // Remove unused docker images to save disk space on the Amazon Linux slave
             sh "docker image prune -f"
         }
     }
