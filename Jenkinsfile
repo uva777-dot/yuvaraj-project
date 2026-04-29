@@ -51,7 +51,7 @@ pipeline {
 
         stage('Health Check') {
             steps {
-                sleep 5
+                sleep 20
                 sh "curl -f http://localhost:${DYNAMIC_PORT} || exit 1"
             }
         }
