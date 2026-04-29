@@ -20,11 +20,18 @@ const errorController = require('./controllers/error');
 const User = require('./models/user');
 const { forwardError } = require('./utils');
 
-// NEW FORMAT: Standard Connection String to fix the ENOTFOUND DNS error
-// Note: We use the shard addresses directly to avoid the +srv lookup failure
-const MONGODB_URI = `mongodb://${process.env.MONGO_USER}:${process.env.MONGO_PWD}@cluster0-shard-00-00.hcscb.mongodb.net:27017,cluster0-shard-00-01.hcscb.mongodb.net:27017,cluster0-shard-00-02.hcscb.mongodb.net:27017/${process.env.MONGO_DB}?ssl=true&replicaSet=atlas-shard-0&authSource=admin&retryWrites=true&w=majority`;
+// 1. Build URI safely with URL encoding for special characters in password
+const user = process.env.MONGO_USER;
+const password = encodeURIComponent(process.env.MONGO_PWD);
+const dbName = process.env.MONGO_DB;
+
+// We are using the standard SRV string. 
+// Note: If you still get DNS errors, ensure 'nameserver 8.8.8.8' is set on your slave.
+const MONGODB_URI = `mongodb+srv://${user}:${password}@cluster0-hcscb.mongodb.net/${dbName}?retryWrites=true&w=majority`;
 
 const app = express();
+
+// 2. Initialize Session Store with the built URI
 const store = new MongoDbSessionStore({
   uri: MONGODB_URI,
   collection: 'sessions'
@@ -66,12 +73,14 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(multer({ storage, fileFilter }).single('image'));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/images', express.static(path.join(__dirname, 'images')));
+
 app.use(session({
   secret: 'my secret',
   resave: false,
   saveUninitialized: false,
-  store
+  store: store
 }));
+
 app.use(csrf());
 app.use(flash());
 
@@ -88,7 +97,7 @@ app.use((req, res, next) => {
   User.findById(req.session.user._id)
     .then(user => {
       if (!user) {
-        next();
+        return next();
       }
       req.user = user;
       next();
@@ -103,17 +112,19 @@ app.use(authRoutes);
 app.use(errorController.get404);
 app.use(errorController.get500);
 
+// 3. Connect to Database and start server
 mongoose
   .connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => {
     console.log('Successfully connected to MongoDb...');
-    // Use 7000 as default; listen on 0.0.0.0 so the container is accessible
     const port = process.env.PORT || 7000;
+    // Listening on 0.0.0.0 is critical for Docker networking
     app.listen(port, "0.0.0.0", () => {
       console.log(`Server is live! Listening on port ${port}...`);
     });
   })
   .catch((err) => {
-      console.log('CRITICAL: Database connection failed!');
-      console.log(err);
+    console.error('CRITICAL: Database connection failed!');
+    console.error(err.message);
+    process.exit(1); // Kill the process so Jenkins notices the container failure
   });
