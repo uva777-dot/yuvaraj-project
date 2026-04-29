@@ -20,8 +20,9 @@ const errorController = require('./controllers/error');
 const User = require('./models/user');
 const { forwardError } = require('./utils');
 
-// Environment variables injected by Jenkins/Docker
-const MONGODB_URI = `mongodb+srv://${process.env.MONGO_USER}:${process.env.MONGO_PWD}@cluster0-hcscb.mongodb.net/${process.env.MONGO_DB}?retryWrites=true&w=majority`;
+// NEW FORMAT: Standard Connection String to fix the ENOTFOUND DNS error
+// Note: We use the shard addresses directly to avoid the +srv lookup failure
+const MONGODB_URI = `mongodb://${process.env.MONGO_USER}:${process.env.MONGO_PWD}@cluster0-shard-00-00.hcscb.mongodb.net:27017,cluster0-shard-00-01.hcscb.mongodb.net:27017,cluster0-shard-00-02.hcscb.mongodb.net:27017/${process.env.MONGO_DB}?ssl=true&replicaSet=atlas-shard-0&authSource=admin&retryWrites=true&w=majority`;
 
 const app = express();
 const store = new MongoDbSessionStore({
@@ -106,10 +107,13 @@ mongoose
   .connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => {
     console.log('Successfully connected to MongoDb...');
-    // MODIFIED: Use 7000 as default; listen on 0.0.0.0 for Docker
+    // Use 7000 as default; listen on 0.0.0.0 so the container is accessible
     const port = process.env.PORT || 7000;
     app.listen(port, "0.0.0.0", () => {
       console.log(`Server is live! Listening on port ${port}...`);
     });
   })
-  .catch((err) => console.log(err));
+  .catch((err) => {
+      console.log('CRITICAL: Database connection failed!');
+      console.log(err);
+  });
