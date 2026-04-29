@@ -20,18 +20,17 @@ const errorController = require('./controllers/error');
 const User = require('./models/user');
 const { forwardError } = require('./utils');
 
-// 1. Build URI safely with URL encoding for special characters in password
+// 1. Build URI using the Standard Connection format from your screenshot
 const user = process.env.MONGO_USER;
 const password = encodeURIComponent(process.env.MONGO_PWD);
 const dbName = process.env.MONGO_DB;
 
-// We are using the standard SRV string. 
-// Note: If you still get DNS errors, ensure 'nameserver 8.8.8.8' is set on your slave.
-const MONGODB_URI = `mongodb+srv://${user}:${password}@cluster0-hcscb.mongodb.net/${dbName}?retryWrites=true&w=majority`;
+// This string is built exactly from your second screenshot to bypass DNS SRV issues
+const MONGODB_URI = `mongodb://${user}:${password}@ac-qqvvhq4-shard-00-00.jvfuvrn.mongodb.net:27017,ac-qqvvhq4-shard-00-01.jvfuvrn.mongodb.net:27017,ac-qqvvhq4-shard-00-02.jvfuvrn.mongodb.net:27017/${dbName}?ssl=true&replicaSet=atlas-uosj7f-shard-0&authSource=admin&retryWrites=true&w=majority`;
 
 const app = express();
 
-// 2. Initialize Session Store with the built URI
+// 2. Initialize Session Store
 const store = new MongoDbSessionStore({
   uri: MONGODB_URI,
   collection: 'sessions'
@@ -112,19 +111,17 @@ app.use(authRoutes);
 app.use(errorController.get404);
 app.use(errorController.get500);
 
-// 3. Connect to Database and start server
+// 3. Database Connection
 mongoose
   .connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => {
-    console.log('Successfully connected to MongoDb...');
+    console.log('Successfully connected to MongoDb via Standard Shard Connection...');
     const port = process.env.PORT || 7000;
-    // Listening on 0.0.0.0 is critical for Docker networking
     app.listen(port, "0.0.0.0", () => {
       console.log(`Server is live! Listening on port ${port}...`);
     });
   })
   .catch((err) => {
-    console.error('CRITICAL: Database connection failed!');
-    console.error(err.message);
-    process.exit(1); // Kill the process so Jenkins notices the container failure
+    console.error('CRITICAL DATABASE ERROR:', err.message);
+    process.exit(1); 
   });
