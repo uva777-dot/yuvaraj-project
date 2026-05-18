@@ -77,7 +77,29 @@ pipeline {
         success {
             echo "Build #${env.BUILD_NUMBER} is live at port ${DYNAMIC_PORT}"
             echo "Access URL: http://<YOUR-SLAVE-IP>:${DYNAMIC_PORT}"
+            
+            // Integrated success email alert
+            emailext (
+                subject: "SUCCESSFUL: Job '${env.JOB_NAME}' [Build #${env.BUILD_NUMBER}]",
+                body: """<p>SUCCESS: Job '${env.JOB_NAME}' [Build #${env.BUILD_NUMBER}] completed successfully.</p>
+                         <p>The build is live at port: <strong>${DYNAMIC_PORT}</strong></p>
+                         <p>Check the console output here: <a href='${env.BUILD_URL}'>${env.JOB_NAME} Build #${env.BUILD_NUMBER}</a></p>""",
+                to: 'uva77@gmail.com',
+                mimeType: 'text/html'
+            )
         }
+        
+        failure {
+            // Integrated failure email alert
+            emailext (
+                subject: "FAILED: Job '${env.JOB_NAME}' [Build #${env.BUILD_NUMBER}]",
+                body: """<p>FAILURE: Job '${env.JOB_NAME}' [Build #${env.BUILD_NUMBER}] has failed during execution.</p>
+                         <p>Check the console output here to debug: <a href='${env.BUILD_URL}console'>Console Output</a></p>""",
+                to: 'uva77@gmail.com',
+                mimeType: 'text/html'
+            )
+        }
+        
         cleanup {
             // Remove unused docker images to save disk space on the Amazon Linux slave
             sh "docker image prune -f"
