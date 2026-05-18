@@ -77,25 +77,20 @@ pipeline {
             echo "Build #${env.BUILD_NUMBER} is live at port ${DYNAMIC_PORT}"
             echo "Access URL: http://<YOUR-SLAVE-IP>:${DYNAMIC_PORT}"
             
-            // Integrated success email alert
-            emailext (
-                subject: "SUCCESSFUL: Job '${env.JOB_NAME}' [Build #${env.BUILD_NUMBER}]",
-                body: """<p>SUCCESS: Job '${env.JOB_NAME}' [Build #${env.BUILD_NUMBER}] completed successfully.</p>
-                         <p>The build is live at port: <strong>${DYNAMIC_PORT}</strong></p>
-                         <p>Check the console output here: <a href='${env.BUILD_URL}'>${env.JOB_NAME} Build #${env.BUILD_NUMBER}</a></p>""",
+            // Replaced with the working standard mail step
+            mail (
                 to: 'uva77@gmail.com',
-                mimeType: 'text/html'
+                subject: "Build #${env.BUILD_NUMBER} Success",
+                body: "Build #${env.BUILD_NUMBER} is live at port ${DYNAMIC_PORT}."
             )
         }
         
         failure {
-            // Integrated failure email alert
-            emailext (
-                subject: "FAILED: Job '${env.JOB_NAME}' [Build #${env.BUILD_NUMBER}]",
-                body: """<p>FAILURE: Job '${env.JOB_NAME}' [Build #${env.BUILD_NUMBER}] has failed during execution.</p>
-                         <p>Check the console output here to debug: <a href='${env.BUILD_URL}console'>Console Output</a></p>""",
+            // Added basic mail step for failures too so you don't fly blind
+            mail (
                 to: 'uva77@gmail.com',
-                mimeType: 'text/html'
+                subject: "Build #${env.BUILD_NUMBER} Failed",
+                body: "Build #${env.BUILD_NUMBER} failed. Check console output on your Jenkins server."
             )
         }
         
