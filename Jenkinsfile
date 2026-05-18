@@ -35,13 +35,13 @@ pipeline {
             steps {
                 script {
                     echo "Deploying to Port: ${DYNAMIC_PORT}"
-                    // Injecting environment variables into the container
+                    // FIXED: Escaped the credentials variables with backslashes (\)
                     sh """
                     docker run -d \
                       --name container_${env.BUILD_NUMBER} \
                       -p ${DYNAMIC_PORT}:7000 \
-                      -e MONGO_USER=${MONGO_CREDS_USR} \
-                      -e MONGO_PWD=${MONGO_CREDS_PSW} \
+                      -e MONGO_USER=\${MONGO_CREDS_USR} \
+                      -e MONGO_PWD=\\${MONGO_CREDS_PSW} \
                       -e MONGO_DB=${MONGO_DB} \
                       -e PORT=7000 \
                       ${IMAGE_NAME}:v${env.BUILD_NUMBER}
@@ -61,7 +61,6 @@ pipeline {
                     
                     if (status != 0) {
                         echo "--- ERROR DETECTED: PRINTING APPLICATION LOGS ---"
-                        // This prints the actual Node.js/Mongoose error to your Jenkins console
                         sh "docker logs container_${env.BUILD_NUMBER}"
                         echo "--- END OF LOGS ---"
                         error "Health check failed. The web server on port ${DYNAMIC_PORT} did not respond."
